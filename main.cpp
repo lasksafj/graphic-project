@@ -177,6 +177,7 @@ int main() {
 	gladLoadGL();
 	glEnable(GL_DEPTH_TEST);
 
+	//window.setFramerateLimit(100);
 
 	//-----------------------------------------------------------------------------------------------------
 	auto shadow_shader = setUpShadow();
@@ -184,6 +185,14 @@ int main() {
 	auto perspective = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
 	
 
+
+
+
+	Skeletal vampire1_model("models/vampire/dancing_vampire.dae", true);
+	SkeletalAnimation vampire1_dance("models/vampire/dancing_vampire.dae", &vampire1_model);
+	SkeletalAnimator vampire1_animator(&vampire1_dance);
+	auto& vampire1 = vampire1_model.getRoot();
+	vampire1.grow(glm::vec3(1.3, 1.3, 1.3));
 
 	//-----------------------------------------------------------------------------------------------------
 	Skeletal skeletal_model("models/model.dae", true);
@@ -205,7 +214,7 @@ int main() {
 	vampire.move(glm::vec3(0, 0, 0));
 	float_t vampire_scale = 0.2;
 	vampire.grow(glm::vec3(vampire_scale, vampire_scale, vampire_scale));
-	vampire.setMass(1);
+	vampire.setMass(10);
 
 
 	float_t vampire_height = 1;
@@ -338,8 +347,7 @@ int main() {
 		move_forward = false,
 		move_backward = false,
 		jumping = false;
-	auto start_jump_time = c.getElapsedTime(),
-		last_gravity_time = c.getElapsedTime();
+	auto last_gravity_time = c.getElapsedTime();
 
 	auto last = c.getElapsedTime();
 	while (running) {
@@ -390,7 +398,7 @@ int main() {
 		auto diff = now - last;
 		auto diffSeconds = diff.asSeconds();
 		last = now;
-		//std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
+		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 
 
 		
@@ -454,25 +462,25 @@ int main() {
 		else {
 			moving = true;
 		}
-		//if (moving && vampire.getPosition().y == 0) {
-		//	skeletal_animator.UpdateAnimation(diff.asSeconds());
-		//}
-		//else {
-		//	skeletal_animator.resetAnimation();
-		//}
-		
-		if (moving && jump_vampire.finish()) {
-			skeletal_animator.UpdateAnimation(diffSeconds);
+		if (moving && vampire.getPosition().y == 0) {
+			skeletal_animator.UpdateAnimation(diff.asSeconds());
 		}
 		else {
 			skeletal_animator.resetAnimation();
 		}
-		if (jumping) {
-			if (jump_vampire.finish()) {
-				jump_vampire.start();
-			}
-		}
-		jump_vampire.tick(diffSeconds);
+		
+		//if (moving && jump_vampire.finish()) {
+		//	skeletal_animator.UpdateAnimation(diffSeconds);
+		//}
+		//else {
+		//	skeletal_animator.resetAnimation();
+		//}
+		//if (jumping) {
+		//	if (jump_vampire.finish()) {
+		//		jump_vampire.start();
+		//	}
+		//}
+		//jump_vampire.tick(diffSeconds);
 
 
 		glm::vec3 forward_cam = target - camera_pos;
@@ -514,29 +522,40 @@ int main() {
 		rotate_vampire.tick(diffSeconds);
 
 
-		//if (jumping && (now - start_jump_time).asSeconds() > 2) {
-		//	std::cout << "AAAAAAA"<< vampire.getVelocity() <<"\n";
-		//	start_jump_time = now;
-		//	vampire.addForce(glm::vec3(0, 10000, 0));
-		//	jumping = false;
-		//}
-
-		//if ((now - last_gravity_time).asMilliseconds() > 1) {
-		//	vampire.addForce(glm::vec3(0, -9.8, 0));
-		//	last_gravity_time = now;
-		//}
 		
 
-		vampire.tick(diffSeconds);
+		if ((now - last_gravity_time).asMilliseconds() > 1.0f) {
+			vampire.addForce(glm::vec3(0, -9.8, 0) * vampire.getMass());
+			last_gravity_time = now;
+
+			if (jumping && vampire.getPosition().y == 0) {
+				
+				vampire.addForce(glm::vec3(0, 15000, 0));
+				jumping = false;
+			}
+			vampire.tick(diffSeconds);
+		}
 		
-		//auto vampire_pos = vampire.getPosition();
-		//vampire_pos.y = fmax(vampire_pos.y, 0.0);
-		//vampire.setPosition(vampire_pos);
+
+		
+		//std::cout << "AAAAAAA" << vampire.getVelocity() << "\n";
+		auto vampire_pos = vampire.getPosition();
+		if (vampire_pos.y <= 0.0005) {
+			vampire_pos.y = 0;
+			vampire.setPosition(vampire_pos);
+			auto vampire_vel = vampire.getVelocity();
+			vampire_vel.y =  0.0;
+			vampire.setVelocity(vampire_vel);
+		}
+		
 
 		//-------------------------------------------------------------------------------------------------------------------------------------
 		
 		
 		auto vampire_transforms = skeletal_animator.GetFinalBoneMatrices();
+
+		vampire1_animator.UpdateAnimation(diffSeconds);
+		auto vampire1_transforms = vampire1_animator.GetFinalBoneMatrices();
 		
 		//-------------------------------------------------------------------------------------------------------------------------------------
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -568,13 +587,15 @@ int main() {
 
 		renderSkeletal(window, shadow_shader, vampire, vampire_transforms);
 
+		renderSkeletal(window, shadow_shader, vampire1, vampire1_transforms);
+
 
 		ground.render(window, shadow_shader);
 		tiger.render(window, shadow_shader);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		//----------------------------------------------------------------------------------------------------------------------
-		glViewport(0, 0, 1200, 800);
+		glViewport(0, 0, window.getSize().x, window.getSize().y);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 
@@ -609,6 +630,7 @@ int main() {
 
 		
 		
+		renderSkeletal(window, skeletal_shader, vampire1, vampire1_transforms);
 		//-------------------------------------------------------------------------------------------------------------------------------------
 		window.display();
 	}

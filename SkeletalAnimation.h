@@ -90,7 +90,7 @@ private:
 		assert(src);
 
 		dest.name = src->mName.data;
-		dest.transformation = glm::mat4(1.0f);
+		dest.transformation = AssimpGLMHelpers::ConvertMatrixToGLMFormat(src->mTransformation);
 
 
 		dest.childrenCount = src->mNumChildren;
