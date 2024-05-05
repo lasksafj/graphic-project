@@ -153,14 +153,24 @@ ShaderProgram setUpShadow() {
 unsigned int skyboxCubeMap;
 ShaderProgram setUpSkybox() {
 
+	//std::string facesCubemap[6] =
+	//{
+	//	"models/skybox/right.jpg",
+	//	"models/skybox/left.jpg",
+	//	"models/skybox/top.jpg",
+	//	"models/skybox/bottom.jpg",
+	//	"models/skybox/front.jpg",
+	//	"models/skybox/back.jpg"
+	//};
+
 	std::string facesCubemap[6] =
 	{
-		"models/skybox/right.jpg",
-		"models/skybox/left.jpg",
-		"models/skybox/top.jpg",
-		"models/skybox/bottom.jpg",
-		"models/skybox/front.jpg",
-		"models/skybox/back.jpg"
+		"models/skybox3/right.png",
+		"models/skybox3/left.png",
+		"models/skybox3/top.png",
+		"models/skybox3/bottom.png",
+		"models/skybox3/front.png",
+		"models/skybox3/back.png"
 	};
 
 	// Creates the cubemap texture object
@@ -361,7 +371,7 @@ void checkCollision(Circle& circle, const Wall& wall, glm::vec2* target = nullpt
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-
+// SkeletalObject is same as Object3D, except SkeletalObject has bones array for skeletal animation.
 int main() {
 	// Initialize the window and OpenGL.
 	sf::ContextSettings Settings;
@@ -385,8 +395,15 @@ int main() {
 	// skybox set up--------------------------------------------------------------------------------------------------
 	ShaderProgram skybox_shader = setUpSkybox();
 	Texture tmp_texture;
-	auto skybox = Mesh3D::cube(tmp_texture);
+	auto skybox = Object3D(std::vector<Mesh3D>{Mesh3D::cube(tmp_texture)});
+	Animator<Object3D> skybox_anim;
 
+	skybox_anim.addAnimation(
+		[&skybox]() {
+			return std::make_unique<RotationAnimation<Object3D>>(skybox, 120, glm::vec3(0, PI, 0));
+		}
+	);
+	skybox_anim.start();
 	
 	
 	// main shader set up-----------------------------------------------------------------------------------------------------
@@ -805,7 +822,8 @@ int main() {
 		skeletal_shader.setUniform("lightPos", light_cube.getPosition());
 		skeletal_shader.setUniform("far_plane", far_plane);
 
-		// max number of textures = 3
+		// there are 3 textures for base texture(diffuse map), normal map, specular map, so use GL_TEXTURE0 + 4 to avoid those 3
+		// but in this code, we can set GL_TEXTURE0 + 0, still working (maybe b/c set uniform right after binding)
 		glActiveTexture(GL_TEXTURE0 + 4);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
 		skeletal_shader.setUniform("depthMap", 4);
@@ -844,10 +862,15 @@ int main() {
 		skybox_shader.setUniform("view", skybox_view);
 		skybox_shader.setUniform("projection", skybox_projection);
 
-		glActiveTexture(GL_TEXTURE0);
+		// base texture(diffuse map), normal map, specular map, depth map (shadow map) -> use GL_TEXTURE0 + 5 to avoid conflict with those
+		// but in this code, we can set GL_TEXTURE0 + 0, still working (maybe b/c set uniform right after binding)
+		glActiveTexture(GL_TEXTURE0 + 5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxCubeMap);
-		skybox_shader.setUniform("skybox", 0);
+		skybox_shader.setUniform("skybox", 5);
 		
+		// rotate sky slowly
+		skybox_anim.tick(diffSeconds);
+
 		skybox.render(window, skybox_shader);
 		
 		glDepthFunc(GL_LESS);
