@@ -31,11 +31,6 @@ public:
 
 		auto animation = scene->mAnimations[0];
 
-		//if (scene->mNumAnimations > 1) {
-		//	auto animation = scene->mAnimations[12];
-		//}
-
-		//auto animation = scene->mAnimations[0];
 		m_Duration = animation->mDuration;
 		m_TicksPerSecond = animation->mTicksPerSecond;
 		ReadHierarchyData(m_RootNode, scene->mRootNode);

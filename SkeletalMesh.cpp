@@ -167,6 +167,8 @@ SkeletalMesh SkeletalMesh::square(const std::vector<Texture>& textures) {
 			vertices[i].m_BoneIDs[j] = -1;
 			vertices[i].m_Weights[j] = 0.0f;
 		}
+
+		//std::cout << vertices[i].Position << " " << vertices[i].Tangent << "\n";
 	}
 
 	return SkeletalMesh(std::vector<SkeletalVertex>(vertices), std::vector<uint32_t>(faces), std::vector<Texture>(textures));

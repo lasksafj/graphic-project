@@ -100,6 +100,18 @@ ShaderProgram shadowMapShader() {
 	return program;
 }
 
+ShaderProgram skyboxShader() {
+	ShaderProgram program;
+	try {
+		program.load("shaders/skybox.vert", "shaders/skybox.frag");
+	}
+	catch (std::runtime_error& e) {
+		std::cout << "ERROR: " << e.what() << std::endl;
+		exit(1);
+	}
+	return program;
+}
+
 
 /**
  * @brief Loads an image from the given path into an OpenGL texture.
@@ -138,11 +150,61 @@ ShaderProgram setUpShadow() {
 	return shadowMapShader();
 }
 
+unsigned int skyboxCubeMap;
+ShaderProgram setUpSkybox() {
+
+	std::string facesCubemap[6] =
+	{
+		"models/skybox/right.jpg",
+		"models/skybox/left.jpg",
+		"models/skybox/top.jpg",
+		"models/skybox/bottom.jpg",
+		"models/skybox/front.jpg",
+		"models/skybox/back.jpg"
+	};
+
+	// Creates the cubemap texture object
+
+	glGenTextures(1, &skyboxCubeMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxCubeMap);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	// These are very important to prevent seams
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	sf::Image image;
+
+	for (unsigned int i = 0; i < 6; i++)
+	{
+		if (image.loadFromFile(facesCubemap[i]))
+		{
+			// Ensure the image is flipped correctly
+
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+				0, GL_RGBA, image.getSize().x, image.getSize().y,
+				0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
+		}
+		else
+		{
+			std::cout << "Cubemap texture failed to load at path: " << facesCubemap[i] << std::endl;
+		}
+	}
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+	return skyboxShader();
+}
+
+// set up for 1 light source, multiple light sources use multiple parameters like these
 void setUpLight(ShaderProgram& program) {
 	program.activate();
 	program.setUniform("ambientColor", glm::vec3(1, 1, 1));
 	program.setUniform("directionalColor", glm::vec3(1, 1, 1));
-	program.setUniform("material", glm::vec4(0.2, 0.5, 1, 32));
+
+	// parameter for object, should be different for each object
+	program.setUniform("material", glm::vec4(0.5, 0.5, 1, 32));
+
 	//program.setUniform("hasDirectionalLight", true);
 	//program.setUniform("directionalLight", glm::vec3(0, 0, -1));
 
@@ -197,14 +259,14 @@ struct Wall {
 	glm::vec2 end;
 	glm::vec2 normal;  // Assuming normal is a unit vector
 
-	SkeletalObject wall;
+	SkeletalObject wall_object;
 
 	Wall(std::vector<Texture>& textures, glm::vec3 pos, glm::vec3 rot, float width, float height) {
-		wall = SkeletalObject(std::vector<SkeletalMesh>{SkeletalMesh::square(textures)});
+		wall_object = SkeletalObject(std::vector<SkeletalMesh>{SkeletalMesh::square(textures)});
 		
-		wall.grow(glm::vec3(width, height, 1));
-		wall.move(pos);
-		wall.rotate(rot);
+		wall_object.grow(glm::vec3(width, height, 1));
+		wall_object.move(pos);
+		wall_object.rotate(rot);
 
 		start = glm::vec2(-0.5f, 0.0f);
 		end = glm::vec2(0.5f, 0.0f);
@@ -310,11 +372,24 @@ int main() {
 	gladLoadGL();
 	glEnable(GL_DEPTH_TEST);
 
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_FRONT);
+	//glFrontFace(GL_CCW);
+
 	//window.setFramerateLimit(100);
 
-	//-----------------------------------------------------------------------------------------------------
+	// shadow set up --------------------------------------------------------------------------------------------------
 	auto shadow_shader = setUpShadow();
-	//-----------------------------------------------------------------------------------------------------
+
+
+	// skybox set up--------------------------------------------------------------------------------------------------
+	ShaderProgram skybox_shader = setUpSkybox();
+	Texture tmp_texture;
+	auto skybox = Mesh3D::cube(tmp_texture);
+
+	
+	
+	// main shader set up-----------------------------------------------------------------------------------------------------
 
 	ShaderProgram skeletal_shader = skeletalShader();
 
@@ -325,7 +400,7 @@ int main() {
 	setUpLight(skeletal_shader);
 
 
-
+	// vampire1 dance -----------------------------------------------------------------------------------------------
 	Skeletal vampire1_model("models/vampire/dancing_vampire.dae", true);
 	SkeletalAnimation vampire1_dance("models/vampire/dancing_vampire.dae", &vampire1_model);
 	SkeletalAnimator vampire1_animator(&vampire1_dance);
@@ -336,7 +411,7 @@ int main() {
 
 
 
-	//-----------------------------------------------------------------------------------------------------
+	// vampire -----------------------------------------------------------------------------------------------------
 	Skeletal skeletal_model("models/model.dae", true);
 	SkeletalAnimation dance_animation("models/model.dae", &skeletal_model);
 	SkeletalAnimator skeletal_animator(&dance_animation);
@@ -393,7 +468,7 @@ int main() {
 	//);
 
 
-	//wall -------------------------------------------------------------------------------------------------
+	// wall -------------------------------------------------------------------------------------------------
 	std::vector<Texture> textures = {
 		loadTexture("models/brick_wall/brickwall.jpg", "baseTexture"),
 		loadTexture("models/brick_wall/brickwall_normal.jpg", "normalMap"),
@@ -408,7 +483,9 @@ int main() {
 	std::vector<Wall> walls = {
 		Wall(textures, glm::vec3(-10, 2.5, 0), glm::vec3(0, PI/2, 0), 20.0f, 5.0f),
 		Wall(textures, glm::vec3(10, 2.5, 0), glm::vec3(0, -PI / 2, 0), 20.0f, 5.0f),
-		Wall(textures, glm::vec3(0, 2.5, -10), glm::vec3(0, 0, 0), 20.0f, 5.0f),
+		//Wall(textures, glm::vec3(0, 2.5, -10), glm::vec3(0, PI/3, 0), 20.0f, 5.0f),
+
+		Wall(textures, glm::vec3(-16, 2.5, 3), glm::vec3(0, -PI / 3, 0), 20.0f, 5.0f),
 	};
 
 
@@ -514,11 +591,11 @@ int main() {
 		auto diff = now - last;
 		auto diffSeconds = diff.asSeconds();
 		last = now;
-		//std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
+		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 
 
 		
-		
+		// control camera -----------------------------------------------------------------------------------------------------
 		
 		sf::Vector2i mouse_position = sf::Mouse::getPosition();
 		
@@ -561,11 +638,6 @@ int main() {
 			last_mouse_position = mouse_position;
 		}
 
-
-		
-		
-
-
 		skeletal_shader.activate();
 		skeletal_shader.setUniform("view", camera);
 		skeletal_shader.setUniform("viewPos", camera_pos);
@@ -576,7 +648,7 @@ int main() {
 
 
 
-		//-------------------------------------------------------------------------------------------------------------------------------------
+		// control character -----------------------------------------------------------------------------------------------------------------------------
 		
 		
 		if ((!move_left && !move_right && !move_forward && !move_backward) || jumping) {
@@ -646,8 +718,6 @@ int main() {
 		rotate_vampire.tick(diffSeconds);
 
 
-		
-
 		if ((now - last_gravity_time).asMilliseconds() > 1.0f) {
 			vampire.addForce(glm::vec3(0, -9.8, 0) * vampire.getMass());
 			last_gravity_time = now;
@@ -660,8 +730,6 @@ int main() {
 			//std::cout << vampire.getPosition() << "\n";
 			vampire.tick(diffSeconds);
 		}
-		
-
 		
 		auto vampire_pos = vampire.getPosition();
 		if (vampire_pos.y <= 0.0005) {
@@ -682,16 +750,13 @@ int main() {
 		vampire.setPosition(vampire_pos);
 		
 
-		//-------------------------------------------------------------------------------------------------------------------------------------
+		// skeletal animator-----------------------------------------------------------------------------------------------------------------------------
 		
-		
-		
-
 		vampire1_animator.UpdateAnimation(diffSeconds);
 		auto vampire1_transforms = vampire1_animator.GetFinalBoneMatrices();
 
 		
-		//-------------------------------------------------------------------------------------------------------------------------------------
+		// render to create depth map (shadow map)--------------------------------------------------------------------------------------------------------
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -726,15 +791,13 @@ int main() {
 		tiger.render(window, shadow_shader);
 
 		for (auto& wall : walls) {
-			wall.wall.render(window, shadow_shader);
+			wall.wall_object.render(window, shadow_shader);
 		}
 
-
-
-
-
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		//----------------------------------------------------------------------------------------------------------------------
+
+
+		// main objects render ----------------------------------------------------------------------------------------------------------------------
 		glViewport(0, 0, window.getSize().x, window.getSize().y);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -757,11 +820,11 @@ int main() {
 
 
 		for (auto& wall : walls) {
-			wall.wall.render(window, skeletal_shader);
+			wall.wall_object.render(window, skeletal_shader);
 		}
 
 
-		//-------------------------------------------------------------------------------------------------------------------------------------
+		// light cube render -------------------------------------------------------------------------------------------------------------------------
 
 		light_shader.activate();
 		light_shader.setUniform("view", camera);
@@ -769,10 +832,27 @@ int main() {
 			o.render(window, light_shader);
 		}
 
-		//-------------------------------------------------------------------------------------------------------------------------------------
+		// skybox render --------------------------------------------------------------------------------------------------------------------------
 
+		glDepthFunc(GL_LEQUAL);
+		skybox_shader.activate();
+
+		auto skybox_view = glm::mat4(glm::mat3(camera));
+		auto skybox_projection = perspective = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
+
+
+		skybox_shader.setUniform("view", skybox_view);
+		skybox_shader.setUniform("projection", skybox_projection);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxCubeMap);
+		skybox_shader.setUniform("skybox", 0);
 		
+		skybox.render(window, skybox_shader);
+		
+		glDepthFunc(GL_LESS);
 
+		//-------------------------------------------------------------------------------------------------------------------------------------
 		window.display();
 	}
 
