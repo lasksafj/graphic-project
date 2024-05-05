@@ -27,6 +27,10 @@ uniform vec3 ambientColor;
 // Direction and color of a single directional light.
 uniform vec3 directionalLight; // this is the "I" vector, not the "L" vector.
 uniform vec3 directionalColor;
+// attenuation
+uniform float light_constant;
+uniform float light_linear;
+uniform float light_quadratic;
 
 // Location of the camera.
 uniform vec3 viewPos;
@@ -84,6 +88,9 @@ void main() {
     // TODO: using the lecture notes, compute ambientIntensity, diffuseIntensity, 
     // and specularIntensity.
 
+    float distance = length(lightPos - FragWorldPos);
+    float attenuation = 1.0 / (light_constant + light_linear * distance + light_quadratic * (distance * distance));   
+
     // ambient
     vec3 ambientIntensity = material.x * ambientColor;
 
@@ -132,7 +139,8 @@ void main() {
 
     float shadow = ShadowCalculation(norm, lightDir);
     // shadow = 0;
-    FragColor = vec4(ambientIntensity + (1.0 - shadow) * (diffuseIntensity + specularIntensity), 1) * texture(baseTexture, TexCoord); 
+    FragColor = vec4(ambientIntensity * attenuation + (1.0 - shadow) * (diffuseIntensity + specularIntensity) * attenuation, 1) 
+        * texture(baseTexture, TexCoord); 
 // ----------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -161,4 +169,5 @@ void main() {
     // // display closestDepth as debug (to visualize depth cubemap)
     // // FragColor = vec4(vec3(closestDepth / far_plane), 1.0);    
 
+    // FragColor = vec4( vec3(1.0 / (light_linear * distance + light_quadratic * (distance * distance))), 1.0);    
 }

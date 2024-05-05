@@ -24,14 +24,24 @@ public:
 	SkeletalAnimation(const std::string& animationPath, Skeletal* model)
 	{
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
+		const aiScene* scene = importer.ReadFile(animationPath, aiProcessPreset_TargetRealtime_MaxQuality);
 		assert(scene && scene->mRootNode);
-		//std::cout << scene->mNumAnimations << "\n";
+
+		std::cout << "Animation count: " << scene->mNumAnimations << "\n";
+
 		auto animation = scene->mAnimations[0];
+
+		//if (scene->mNumAnimations > 1) {
+		//	auto animation = scene->mAnimations[12];
+		//}
+
+		//auto animation = scene->mAnimations[0];
 		m_Duration = animation->mDuration;
 		m_TicksPerSecond = animation->mTicksPerSecond;
 		ReadHierarchyData(m_RootNode, scene->mRootNode);
 		ReadMissingBones(animation, *model);
+
+		std::cout << "Bone count: " << model->GetBoneCount() << "\n";
 	}
 
 	~SkeletalAnimation()
@@ -59,10 +69,14 @@ public:
 		return m_BoneInfoMap;
 	}
 
+	inline int getBonesSize() { return m_Bones.size(); }
+
 private:
 	void ReadMissingBones(const aiAnimation* animation, Skeletal& model)
 	{
 		int size = animation->mNumChannels;
+
+		//std::cout << "animation->mNumChannels " << size << "\n";
 
 		auto& boneInfoMap = model.GetBoneInfoMap();//getting m_BoneInfoMap from Model class
 		int& boneCount = model.GetBoneCount(); //getting the m_BoneCounter from Model class

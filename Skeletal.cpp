@@ -118,43 +118,6 @@ SkeletalMesh Skeletal::s_fromAssimpMesh(const aiMesh* mesh, const aiScene* scene
 
 
 
-
-	//for (unsigned int i = 0; i < faces.size(); i += 3) {
-	//	auto& v0 = vertices[faces[i]];
-	//	auto& v1 = vertices[faces[i + 1]];
-	//	auto& v2 = vertices[faces[i + 2]];
-
-	//	auto Edge1 = v1.Position - v0.Position;
-	//	auto Edge2 = v2.Position - v0.Position;
-
-	//	float DeltaU1 = v1.TexCoords.x - v0.TexCoords.x;
-	//	float DeltaV1 = v1.TexCoords.y - v0.TexCoords.y;
-	//	float DeltaU2 = v2.TexCoords.x - v0.TexCoords.x;
-	//	float DeltaV2 = v2.TexCoords.y - v0.TexCoords.y;
-
-	//	float f = 1.0f / (DeltaU1 * DeltaV2 - DeltaU2 * DeltaV1);
-
-	//	glm::vec3 Tangent, Bitangent;
-
-	//	Tangent.x = f * (DeltaV2 * Edge1.x - DeltaV1 * Edge2.x);
-	//	Tangent.y = f * (DeltaV2 * Edge1.y - DeltaV1 * Edge2.y);
-	//	Tangent.z = f * (DeltaV2 * Edge1.z - DeltaV1 * Edge2.z);
-
-	//	Bitangent.x = f * (-DeltaU2 * Edge1.x + DeltaU1 * Edge2.x);
-	//	Bitangent.y = f * (-DeltaU2 * Edge1.y + DeltaU1 * Edge2.y);
-	//	Bitangent.z = f * (-DeltaU2 * Edge1.z + DeltaU1 * Edge2.z);
-
-	//	v0.Tangent += Tangent;
-	//	v1.Tangent += Tangent;
-	//	v2.Tangent += Tangent;
-	//}
-
-	//for (unsigned int i = 0; i < vertices.size(); i++) {
-	//	vertices[i].Tangent = glm::normalize(vertices[i].Tangent);
-	//}
-
-
-
 	std::vector<Texture> textures = {};
 	if (mesh->mMaterialIndex >= 0)
 	{
@@ -185,6 +148,8 @@ SkeletalObject Skeletal::s_processAssimpNode(aiNode* node, const aiScene* scene,
 	const std::filesystem::path& modelPath,
 	std::unordered_map<std::filesystem::path, Texture>& loadedTextures) {
 
+	//std::cout << "---" << node->mNumMeshes << " children: " << node->mNumChildren << "\n";
+
 	// Load the aiNode's meshes.
 	std::vector<SkeletalMesh> meshes;
 	for (auto i = 0; i < node->mNumMeshes; i++) {
@@ -213,6 +178,9 @@ SkeletalObject Skeletal::s_processAssimpNode(aiNode* node, const aiScene* scene,
 }
 
 SkeletalObject Skeletal::s_assimpLoad(const std::string& path, bool flipTextureCoords) {
+
+	std::cout << path << "\n";
+
 	Assimp::Importer importer;
 	// add: calculate tangent
 	auto options = aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_CalcTangentSpace;

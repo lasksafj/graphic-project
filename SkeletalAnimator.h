@@ -14,13 +14,16 @@ public:
 	{
 		m_CurrentTime = 0.0;
 		m_CurrentAnimation = animation;
+		
+		int size = animation->getBonesSize();
 
-		m_FinalBoneMatrices.reserve(100);
+		m_FinalBoneMatrices.reserve(size);
 
-		for (int i = 0; i < 100; i++)
+		for (int i = 0; i < size; i++)
 			m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
 
 		m_GlobalInverseTransform = inverse(m_CurrentAnimation->GetRootNode().transformation);
+
 	}
 
 	void UpdateAnimation(float dt)

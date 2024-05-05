@@ -216,7 +216,7 @@ void ShaderProgram::setUniform(const std::string& uniformName, int32_t value)
 
 void ShaderProgram::setUniform(const std::string& uniformName, float_t value)
 {
-    glUniform1f(glGetUniformLocation(m_programId, uniformName.c_str()), (int)value);
+    glUniform1f(glGetUniformLocation(m_programId, uniformName.c_str()), value);
 }
 
 void ShaderProgram::setUniform(const std::string& uniformName, const glm::vec2& value)

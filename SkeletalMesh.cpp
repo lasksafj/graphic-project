@@ -1,3 +1,4 @@
+#define GLM_ENABLE_EXPERIMENTAL
 #include <iostream>
 #include "SkeletalMesh.h"
 #include <glad/glad.h>
@@ -105,24 +106,24 @@ SkeletalMesh SkeletalMesh::square(const std::vector<Texture>& textures) {
 
 	std::vector<SkeletalVertex> vertices;
 	SkeletalVertex a;
-	a.Position = glm::vec3(-1.0f, 1.0f, 0.0f);
-	a.TexCoords = glm::vec2(0.0f, 1.0f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Position = glm::vec3(-0.5f, 0.5f, 0.0f);
+	a.TexCoords = glm::vec2(0.0f, 0.5f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
 	vertices.push_back(a);
 
-	a.Position = glm::vec3(-1.0f, -1.0f, 0.0f);
+	a.Position = glm::vec3(-0.5f, -0.5f, 0.0f);
 	a.TexCoords = glm::vec2(0.0f, 0.0f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
 	vertices.push_back(a);
 
-	a.Position = glm::vec3(1.0f, -1.0f, 0.0f);
-	a.TexCoords = glm::vec2(1.0f, 0.0f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Position = glm::vec3(0.5f, -0.5f, 0.0f);
+	a.TexCoords = glm::vec2(0.5f, 0.0f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
 	vertices.push_back(a);
 
-	a.Position = glm::vec3(1.0f, 1.0f, 0.0f);
-	a.TexCoords = glm::vec2(1.0f, 1.0f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Position = glm::vec3(0.5f, 0.5f, 0.0f);
+	a.TexCoords = glm::vec2(0.5f, 0.5f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
 	vertices.push_back(a);
 
 	vector<uint32_t> faces = { 0,1,2,0,2,3 };
@@ -141,7 +142,7 @@ SkeletalMesh SkeletalMesh::square(const std::vector<Texture>& textures) {
 		float DeltaU2 = v2.TexCoords.x - v0.TexCoords.x;
 		float DeltaV2 = v2.TexCoords.y - v0.TexCoords.y;
 
-		float f = 1.0f / (DeltaU1 * DeltaV2 - DeltaU2 * DeltaV1);
+		float f = 1.0 / (DeltaU1 * DeltaV2 - DeltaU2 * DeltaV1);
 
 		glm::vec3 Tangent, Bitangent;
 

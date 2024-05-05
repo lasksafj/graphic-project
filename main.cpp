@@ -138,6 +138,27 @@ ShaderProgram setUpShadow() {
 	return shadowMapShader();
 }
 
+void setUpLight(ShaderProgram& program) {
+	program.activate();
+	program.setUniform("ambientColor", glm::vec3(1, 1, 1));
+	program.setUniform("directionalColor", glm::vec3(1, 1, 1));
+	program.setUniform("material", glm::vec4(0.2, 0.5, 1, 32));
+	//program.setUniform("hasDirectionalLight", true);
+	//program.setUniform("directionalLight", glm::vec3(0, 0, -1));
+
+
+	program.setUniform("light_constant", 1.0f);
+	// distance inf
+	program.setUniform("light_linear", 0.0f);
+	program.setUniform("light_quadratic", 0.0f);
+	// distance 100
+	//program.setUniform("light_linear", 0.045f);
+	//program.setUniform("light_quadratic", 0.0075f);
+	// distance 50
+	//program.setUniform("light_linear", 0.09f);
+	//program.setUniform("light_quadratic", 0.0032f);
+}
+
 
 void renderSkeletal(sf::RenderWindow& window, ShaderProgram& program, SkeletalObject& obj, std::vector<glm::mat4>& transforms) {
 	program.activate();
@@ -154,7 +175,7 @@ Scene<Object3D> lightScene() {
 	Texture tmp_texture;
 	auto mesh = Mesh3D::cube(tmp_texture);
 	auto light_cube = Object3D(std::vector<Mesh3D>{mesh});
-	light_cube.move(glm::vec3(0, 10, 0));
+	light_cube.move(glm::vec3(0, 5, 0));
 	light_cube.grow(glm::vec3(1, 1, 1));
 	std::vector<Object3D> objects;
 	objects.push_back(std::move(light_cube));
@@ -165,6 +186,118 @@ Scene<Object3D> lightScene() {
 	};
 }
 
+// line segment - circle intersect ------------------------------------------------------------------------------------------------
+struct Circle {
+	glm::vec2 center;
+	float radius;
+};
+
+struct Wall {
+	glm::vec2 start;
+	glm::vec2 end;
+	glm::vec2 normal;  // Assuming normal is a unit vector
+
+	SkeletalObject wall;
+
+	Wall(std::vector<Texture>& textures, glm::vec3 pos, glm::vec3 rot, float width, float height) {
+		wall = SkeletalObject(std::vector<SkeletalMesh>{SkeletalMesh::square(textures)});
+		
+		wall.grow(glm::vec3(width, height, 1));
+		wall.move(pos);
+		wall.rotate(rot);
+
+		start = glm::vec2(-0.5f, 0.0f);
+		end = glm::vec2(0.5f, 0.0f);
+		
+		float c = rot.y;
+		glm::mat2 rotationMatrix = glm::mat2(
+			glm::cos(c), -glm::sin(c),
+			glm::sin(c), glm::cos(c)
+		);
+		start = rotationMatrix * start;
+		end = rotationMatrix * end;
+
+		normal = glm::vec2(0, 1);
+		normal = glm::rotate(normal, -c);
+
+		start *= width;
+		end *= width;
+
+		start += glm::vec2(pos.x, pos.z);
+		end += glm::vec2(pos.x, pos.z);
+
+		//std::cout <<wall.getPosition()<<": " << start << " " << end << " " << normal << "\n";
+	}
+};
+
+float pointLineSignedDistance(const glm::vec2& point, const glm::vec2& start, const glm::vec2& end, const glm::vec2& normal) {
+	glm::vec2 pointVec = point - start;
+	float signedDist = glm::dot(pointVec, normal);
+	return signedDist;
+}
+
+void checkCollision(Circle& circle, const Wall& wall, glm::vec2* target = nullptr) {
+	auto x = circle.center.x,
+		y = circle.center.y;
+	if ((x < std::min(wall.start.x, wall.end.x) || x > std::max(wall.start.x, wall.end.x))
+		&& (y < std::min(wall.start.y, wall.end.y) || y > std::max(wall.start.y, wall.end.y))) {
+		return;
+	}
+
+	float distance = pointLineSignedDistance(circle.center, wall.start, wall.end, wall.normal);
+	if (!target) {
+		if (distance <= circle.radius && distance >= 0) {
+			float overlap = circle.radius - distance;
+			if (overlap > 0) {
+				circle.center += wall.normal * overlap;
+			}
+		}
+	}
+	else {
+		auto a = glm::normalize(*target - circle.center);
+		auto b = wall.normal;
+		auto distant_target_wall = pointLineSignedDistance(*target, wall.start, wall.end, wall.normal);
+		if (glm::dot(a,b) > 0 && distance <= circle.radius && distant_target_wall >= 0) {
+
+			float overlap = circle.radius - distance;
+			if (overlap > 0) {
+				circle.center += wall.normal * overlap;
+			}
+		}
+	}
+}
+
+
+// 3D ----------------------------------------------------------
+//struct Sphere {
+//	glm::vec3 center;
+//	float radius;
+//};
+//
+//struct Plane {
+//	glm::vec3 point;  // A point on the plane
+//	glm::vec3 normal; // Normal vector to the plane, must be a unit vector
+//};
+//
+//float pointPlaneDistance(const glm::vec3& point, const glm::vec3& planePoint, const glm::vec3& normal) {
+//	return glm::dot(point - planePoint, normal);
+//}
+//
+//bool checkCollision(const Sphere& sphere, const Plane& plane) {
+//	float distance = pointPlaneDistance(sphere.center, plane.point, plane.normal);
+//	return distance <= sphere.radius; // The sphere collides if the distance is less than its radius
+//}
+//
+//void resolveCollision(Sphere& sphere, const Plane& plane) {
+//	float distance = pointPlaneDistance(sphere.center, plane.point, plane.normal);
+//	float overlap = sphere.radius - distance;
+//
+//	if (overlap > 0) {
+//		sphere.center += plane.normal * overlap; // Move the sphere out of the plane by the overlap amount
+//	}
+//}
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 
 int main() {
@@ -182,9 +315,14 @@ int main() {
 	//-----------------------------------------------------------------------------------------------------
 	auto shadow_shader = setUpShadow();
 	//-----------------------------------------------------------------------------------------------------
-	auto perspective = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
-	
 
+	ShaderProgram skeletal_shader = skeletalShader();
+
+	auto perspective = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
+	skeletal_shader.activate();
+	skeletal_shader.setUniform("projection", perspective);
+
+	setUpLight(skeletal_shader);
 
 
 
@@ -193,49 +331,29 @@ int main() {
 	SkeletalAnimator vampire1_animator(&vampire1_dance);
 	auto& vampire1 = vampire1_model.getRoot();
 	vampire1.grow(glm::vec3(1.3, 1.3, 1.3));
+	vampire1.move(glm::vec3(0, 0, -8));
+	vampire1.addTexture(loadTexture("models/vampire/textures/Vampire_normal.png", "normalMap"));
+
+
 
 	//-----------------------------------------------------------------------------------------------------
 	Skeletal skeletal_model("models/model.dae", true);
 	SkeletalAnimation dance_animation("models/model.dae", &skeletal_model);
 	SkeletalAnimator skeletal_animator(&dance_animation);
 
-	ShaderProgram skeletal_shader = skeletalShader();
-
-	skeletal_shader.activate();
-	skeletal_shader.setUniform("projection", perspective);
-	skeletal_shader.setUniform("ambientColor", glm::vec3(1, 1, 1));
-	skeletal_shader.setUniform("directionalColor", glm::vec3(1, 1, 1));
-	skeletal_shader.setUniform("material", glm::vec4(0.2, 0.7, 0.9, 10));
-
-	//skeletal_shader.setUniform("hasDirectionalLight", true);
-	//skeletal_shader.setUniform("directionalLight", glm::vec3(0, 0, -1));
 
 	auto& vampire = skeletal_model.getRoot();
-	vampire.move(glm::vec3(0, 0, 0));
+	//vampire.move(glm::vec3(0, 0, 0));
 	float_t vampire_scale = 0.2;
 	vampire.grow(glm::vec3(vampire_scale, vampire_scale, vampire_scale));
 	vampire.setMass(10);
 
 
 	float_t vampire_height = 1;
-	float_t vampire_velocity = 5;
+	float_t vampire_velocity = 4;
 	glm::vec3 vampire_forward = glm::vec3(0, 0, 1);
-	float_t last_azimuth = 0;
 
-	float radius = 5.0f;
-	float azimuth = 0;   // Horizontal angle
-	float elevation = 0; // Vertical angle
-	auto target = vampire.getPosition();
-	target.y += vampire_height;
-	glm::vec3 camera_pos(
-		target.x + radius * cos(elevation) * sin(azimuth),
-		target.y + radius * sin(elevation),
-		target.z + radius * cos(elevation) * cos(azimuth)
-	);
-	auto up_vector = glm::vec3(0, 1, 0);
-	auto camera = glm::lookAt(camera_pos, target, up_vector);
-
-
+	
 	glm::vec3 desired_direction;
 	Animator<SkeletalObject> rotate_vampire;
 	rotate_vampire.addAnimation(
@@ -262,22 +380,20 @@ int main() {
 
 	//-----------------------------------------------------------------------------------------------------
 
-	Animator<SkeletalObject> jump_vampire;
-	jump_vampire.addAnimation(
-		[&vampire]() {
-			return std::make_unique<TranslationAnimation<SkeletalObject>>(vampire, 0.4, glm::vec3(0, 2, 0));
-		}
-	);
-	jump_vampire.addAnimation(
-		[&vampire]() {
-			return std::make_unique<TranslationAnimation<SkeletalObject>>(vampire, 0.4, glm::vec3(0, -2, 0));
-		}
-	);
+	//Animator<SkeletalObject> jump_vampire;
+	//jump_vampire.addAnimation(
+	//	[&vampire]() {
+	//		return std::make_unique<TranslationAnimation<SkeletalObject>>(vampire, 0.4, glm::vec3(0, 2, 0));
+	//	}
+	//);
+	//jump_vampire.addAnimation(
+	//	[&vampire]() {
+	//		return std::make_unique<TranslationAnimation<SkeletalObject>>(vampire, 0.4, glm::vec3(0, -2, 0));
+	//	}
+	//);
 
 
-	//-----------------------------------------------------------------------------------------------------
-
-
+	//wall -------------------------------------------------------------------------------------------------
 	std::vector<Texture> textures = {
 		loadTexture("models/brick_wall/brickwall.jpg", "baseTexture"),
 		loadTexture("models/brick_wall/brickwall_normal.jpg", "normalMap"),
@@ -285,40 +401,29 @@ int main() {
 	auto mesh = SkeletalMesh::square(textures);
 	auto ground = SkeletalObject(std::vector<SkeletalMesh>{mesh});
 	ground.rotate(glm::vec3(-PI / 2, 0, 0));
-
-	auto wall1 = SkeletalObject(std::vector<SkeletalMesh>{mesh});
-	wall1.rotate(glm::vec3(0, PI / 2, 0));
-	wall1.move(glm::vec3(-1, 0, 1));
-	ground.addChild(std::move(wall1));
-
-	auto wall2 = SkeletalObject(std::vector<SkeletalMesh>{mesh});
-	wall2.rotate(glm::vec3(0, -PI / 2, 0));
-	wall2.move(glm::vec3(1, 0, 1));
-	ground.addChild(std::move(wall2));
-
-	auto wall3 = SkeletalObject(std::vector<SkeletalMesh>{mesh});
-	wall3.rotate(glm::vec3(PI/2, 0, 0));
-	wall3.move(glm::vec3(0, 1, 1));
-	ground.addChild(std::move(wall3));
-
-	auto wall4 = SkeletalObject(std::vector<SkeletalMesh>{mesh});
-	wall4.rotate(glm::vec3(-PI / 2, 0, 0));
-	wall4.move(glm::vec3(0, -1, 1));
-	ground.addChild(std::move(wall4));
-
 	ground.grow(glm::vec3(20, 20, 20));
 
 	
+
+	std::vector<Wall> walls = {
+		Wall(textures, glm::vec3(-10, 2.5, 0), glm::vec3(0, PI/2, 0), 20.0f, 5.0f),
+		Wall(textures, glm::vec3(10, 2.5, 0), glm::vec3(0, -PI / 2, 0), 20.0f, 5.0f),
+		Wall(textures, glm::vec3(0, 2.5, -10), glm::vec3(0, 0, 0), 20.0f, 5.0f),
+	};
+
+
+
+
+	// ---------------------------------------------------------------------------------------------------------------
+
+
 
 	auto tiger = assimpLoad("models/tiger/scene.gltf", true);
 	tiger.grow(glm::vec3(0.01, 0.01, 0.01));
 	tiger.move(glm::vec3(2, 2, 4));
 
 
-
 	
-
-
 
 	// light source -----------------------------------------------------------
 	auto light_scene = lightScene();
@@ -328,9 +433,21 @@ int main() {
 	light_shader.setUniform("projection", perspective);
 	light_shader.setUniform("color", glm::vec4(1, 1, 1, 1));
 
-	
+	// camera --------------------------------------------------------------------
+	float radius = 5.0f;
+	float azimuth = 0;   // Horizontal angle
+	float elevation = 0; // Vertical angle
+	auto target = vampire.getPosition();
+	target.y += vampire_height;
+	glm::vec3 camera_pos(
+		target.x + radius * cos(elevation) * sin(azimuth),
+		target.y + radius * sin(elevation),
+		target.z + radius * cos(elevation) * cos(azimuth)
+	);
+	auto up_vector = glm::vec3(0, 1, 0);
+	auto camera = glm::lookAt(camera_pos, target, up_vector);
 
-
+	// ----------------------------------------------------------------------------------------------------------------------
 	// Ready, set, go!
 	//for (auto& animator : scene.animators) {
 	//	animator.start();
@@ -338,7 +455,6 @@ int main() {
 	bool running = true;
 	sf::Clock c;
 
-	//float_t x = -1.0f;
 
 	sf::Vector2i last_mouse_position = sf::Vector2i(window.getSize().x / 2, window.getSize().y / 2);
 	bool moving = false,
@@ -398,7 +514,7 @@ int main() {
 		auto diff = now - last;
 		auto diffSeconds = diff.asSeconds();
 		last = now;
-		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
+		//std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 
 
 		
@@ -426,27 +542,34 @@ int main() {
 				std::max(0.2f, target.y + radius * sin(elevation) ),
 				target.z + radius * cos(elevation) * cos(azimuth)
 			);
+
+			// intersect wall - cam ---------------------------------------------------------------------------------
+			Circle cam_circle = { {camera_pos.x, camera_pos.z}, 0.2f };
+			
+
+			for (auto& wall : walls) {
+				auto tmp = glm::vec2(target.x, target.z);
+				checkCollision(cam_circle, wall, &tmp);
+			}
+			camera_pos.x = cam_circle.center.x;
+			camera_pos.z = cam_circle.center.y;
+			// ----------------------------------------------------------------------------------------------------
+
+
 			camera = glm::lookAt(camera_pos, target, up_vector);
-
-
-			//mainShader.setUniform("view", camera);
-			//mainShader.setUniform("viewPos", glm::vec3(camera_pos));
 
 			last_mouse_position = mouse_position;
 		}
+
+
+		
 		
 
 
-		//for (auto& animator : scene.animators) {
-		//	animator.tick(diffSeconds);
-		//}
-
-		// Clear the OpenGL "context".
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// Render each object in the scene.
-		//for (auto& o : scene.objects) {
-		//	o.render(window, mainShader);
-		//}
+		skeletal_shader.activate();
+		skeletal_shader.setUniform("view", camera);
+		skeletal_shader.setUniform("viewPos", camera_pos);
+		
 
 		
 
@@ -468,6 +591,7 @@ int main() {
 		else {
 			skeletal_animator.resetAnimation();
 		}
+		auto vampire_transforms = skeletal_animator.GetFinalBoneMatrices();
 		
 		//if (moving && jump_vampire.finish()) {
 		//	skeletal_animator.UpdateAnimation(diffSeconds);
@@ -533,12 +657,12 @@ int main() {
 				vampire.addForce(glm::vec3(0, 15000, 0));
 				jumping = false;
 			}
+			//std::cout << vampire.getPosition() << "\n";
 			vampire.tick(diffSeconds);
 		}
 		
 
 		
-		//std::cout << "AAAAAAA" << vampire.getVelocity() << "\n";
 		auto vampire_pos = vampire.getPosition();
 		if (vampire_pos.y <= 0.0005) {
 			vampire_pos.y = 0;
@@ -547,15 +671,25 @@ int main() {
 			vampire_vel.y =  0.0;
 			vampire.setVelocity(vampire_vel);
 		}
+
+		// character collide with wall ---------------------------------------------------------------------------------------------------------
+		Circle vampire_circle = { {vampire_pos.x, vampire_pos.z}, 0.5f };
+		for (auto& wall : walls) {
+			checkCollision(vampire_circle, wall);
+		}
+		vampire_pos.x = vampire_circle.center.x;
+		vampire_pos.z = vampire_circle.center.y;
+		vampire.setPosition(vampire_pos);
 		
 
 		//-------------------------------------------------------------------------------------------------------------------------------------
 		
 		
-		auto vampire_transforms = skeletal_animator.GetFinalBoneMatrices();
+		
 
 		vampire1_animator.UpdateAnimation(diffSeconds);
 		auto vampire1_transforms = vampire1_animator.GetFinalBoneMatrices();
+
 		
 		//-------------------------------------------------------------------------------------------------------------------------------------
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -586,25 +720,26 @@ int main() {
 
 
 		renderSkeletal(window, shadow_shader, vampire, vampire_transforms);
-
 		renderSkeletal(window, shadow_shader, vampire1, vampire1_transforms);
-
 
 		ground.render(window, shadow_shader);
 		tiger.render(window, shadow_shader);
+
+		for (auto& wall : walls) {
+			wall.wall.render(window, shadow_shader);
+		}
+
+
+
+
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		//----------------------------------------------------------------------------------------------------------------------
 		glViewport(0, 0, window.getSize().x, window.getSize().y);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
-		//-------------------------------------------------------------------------------------------------------------------------------------
 		skeletal_shader.activate();
 		skeletal_shader.setUniform("lightPos", light_cube.getPosition());
-		skeletal_shader.setUniform("view", camera);
-		skeletal_shader.setUniform("viewPos", camera_pos);
-
 		skeletal_shader.setUniform("far_plane", far_plane);
 
 		// max number of textures = 3
@@ -615,9 +750,15 @@ int main() {
 
 
 		renderSkeletal(window, skeletal_shader, vampire, vampire_transforms);
+		renderSkeletal(window, skeletal_shader, vampire1, vampire1_transforms);
 
 		ground.render(window, skeletal_shader);
 		tiger.render(window, skeletal_shader);
+
+
+		for (auto& wall : walls) {
+			wall.wall.render(window, skeletal_shader);
+		}
 
 
 		//-------------------------------------------------------------------------------------------------------------------------------------
@@ -628,10 +769,10 @@ int main() {
 			o.render(window, light_shader);
 		}
 
-		
-		
-		renderSkeletal(window, skeletal_shader, vampire1, vampire1_transforms);
 		//-------------------------------------------------------------------------------------------------------------------------------------
+
+		
+
 		window.display();
 	}
 
