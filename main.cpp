@@ -386,14 +386,20 @@ int main() {
 	//glCullFace(GL_FRONT);
 	//glFrontFace(GL_CCW);
 
-	//window.setFramerateLimit(100);
+	window.setFramerateLimit(60);
 
 	// shadow set up --------------------------------------------------------------------------------------------------
 	auto shadow_shader = setUpShadow();
+	float near_plane = 0.1f;
+	float far_plane = 100.0f;
+	//glm::mat4 shadowProj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+	glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT, near_plane, far_plane);
 
 
 	// skybox set up--------------------------------------------------------------------------------------------------
 	ShaderProgram skybox_shader = setUpSkybox();
+	//auto skybox_projection = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
+
 	Texture tmp_texture;
 	auto skybox = Object3D(std::vector<Mesh3D>{Mesh3D::cube(tmp_texture)});
 	Animator<Object3D> skybox_anim;
@@ -407,7 +413,6 @@ int main() {
 	
 	
 	// main shader set up-----------------------------------------------------------------------------------------------------
-
 	ShaderProgram skeletal_shader = skeletalShader();
 
 	auto perspective = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
@@ -608,7 +613,7 @@ int main() {
 		auto diff = now - last;
 		auto diffSeconds = diff.asSeconds();
 		last = now;
-		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
+		//std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 
 
 		
@@ -621,8 +626,8 @@ int main() {
 			last_mouse_position = sf::Mouse::getPosition();
 		}
 		else {
-			float_t delta_x = 1.0f * (mouse_position.y - last_mouse_position.y) / (window.getSize().y) * 3.14 / 2.0;
-			float_t delta_y = -1.0f * (mouse_position.x - last_mouse_position.x) / (window.getSize().x) * 3.14 / 2.0;
+			float_t delta_x = 1.0f * (mouse_position.y - last_mouse_position.y) / (window.getSize().y) * PI / 2.0;
+			float_t delta_y = -1.0f * (mouse_position.x - last_mouse_position.x) / (window.getSize().x) * PI / 2.0;
 
 			azimuth += delta_y;
 			elevation += delta_x;
@@ -741,7 +746,7 @@ int main() {
 
 			if (jumping && vampire.getPosition().y == 0) {
 				
-				vampire.addForce(glm::vec3(0, 15000, 0));
+				vampire.addForce(glm::vec3(0, 3000, 0));
 				jumping = false;
 			}
 			//std::cout << vampire.getPosition() << "\n";
@@ -777,10 +782,7 @@ int main() {
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		float near_plane = 0.1f;
-		float far_plane = 100.0f;
-		//glm::mat4 shadowProj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-		glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT, near_plane, far_plane);
+		
 		std::vector<glm::mat4> shadowTransforms;
 		auto lightPos = light_cube.getPosition();
 		shadowTransforms.push_back(shadowProj* glm::lookAt(lightPos, lightPos + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
@@ -856,11 +858,10 @@ int main() {
 		skybox_shader.activate();
 
 		auto skybox_view = glm::mat4(glm::mat3(camera));
-		auto skybox_projection = perspective = glm::perspective(glm::radians(45.0), static_cast<double>(window.getSize().x) / window.getSize().y, 0.1, 100.0);
 
 
 		skybox_shader.setUniform("view", skybox_view);
-		skybox_shader.setUniform("projection", skybox_projection);
+		skybox_shader.setUniform("projection", perspective);
 
 		// base texture(diffuse map), normal map, specular map, depth map (shadow map) -> use GL_TEXTURE0 + 5 to avoid conflict with those
 		// but in this code, we can set GL_TEXTURE0 + 0, still working (maybe b/c set uniform right after binding)
