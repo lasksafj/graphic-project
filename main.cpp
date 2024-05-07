@@ -248,7 +248,7 @@ Scene<Object3D> lightScene() {
 	auto mesh = Mesh3D::cube(tmp_texture);
 	auto light_cube = Object3D(std::vector<Mesh3D>{mesh});
 	light_cube.move(glm::vec3(0, 5, 0));
-	light_cube.grow(glm::vec3(1, 1, 1));
+	light_cube.grow(glm::vec3(0.3, 0.3, 0.3));
 	std::vector<Object3D> objects;
 	objects.push_back(std::move(light_cube));
 
@@ -258,11 +258,48 @@ Scene<Object3D> lightScene() {
 	};
 }
 
+// check 2 line intersect
+int orientation(glm::vec2& p, glm::vec2& q, glm::vec2& r) {
+	int val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+	if (val == 0) return 0;  // collinear
+	return (val > 0) ? 1 : 2; // clock or counterclock wise
+}
+
+// Function to check if point q lies on segment pr
+bool onSegment(glm::vec2& p, glm::vec2& q, glm::vec2& r) {
+	if (q.x <= std::max(p.x, r.x) && q.x >= std::min(p.x, r.x) &&
+		q.y <= std::max(p.y, r.y) && q.y >= std::min(p.y, r.y))
+		return true;
+	return false;
+}
+
+// Function that returns true if line segment 'p1q1' and 'p2q2' intersect.
+bool doIntersect(glm::vec2& p1, glm::vec2& q1, glm::vec2& p2, glm::vec2& q2) {
+	// Find the four orientations needed for the general and special cases
+	int o1 = orientation(p1, q1, p2);
+	int o2 = orientation(p1, q1, q2);
+	int o3 = orientation(p2, q2, p1);
+	int o4 = orientation(p2, q2, q1);
+
+	// General case
+	if (o1 != o2 && o3 != o4)
+		return true;
+
+	// Special Cases
+	if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+	if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+	if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+	if (o4 == 0 && onSegment(p2, q1, q2)) return true;
+
+	return false; // Doesn't fall in any of the above cases
+}
+
 // line segment - circle intersect ------------------------------------------------------------------------------------------------
 struct Circle {
 	glm::vec2 center;
 	float radius;
 };
+
 
 struct Wall {
 	glm::vec2 start;
@@ -308,16 +345,19 @@ float pointLineSignedDistance(const glm::vec2& point, const glm::vec2& start, co
 	return signedDist;
 }
 
-void checkCollision(Circle& circle, const Wall& wall, glm::vec2* target = nullptr) {
+void checkCollision(Circle& circle, Wall& wall, glm::vec2* target = nullptr) {
 	auto x = circle.center.x,
 		y = circle.center.y;
-	if ((x < std::min(wall.start.x, wall.end.x) || x > std::max(wall.start.x, wall.end.x))
-		&& (y < std::min(wall.start.y, wall.end.y) || y > std::max(wall.start.y, wall.end.y))) {
-		return;
-	}
+	
 
 	float distance = pointLineSignedDistance(circle.center, wall.start, wall.end, wall.normal);
 	if (!target) {
+		
+		if ((x < std::min(wall.start.x, wall.end.x) || x > std::max(wall.start.x, wall.end.x))
+			&& (y < std::min(wall.start.y, wall.end.y) || y > std::max(wall.start.y, wall.end.y))) {
+			return;
+		}
+
 		if (distance <= circle.radius && distance >= 0) {
 			float overlap = circle.radius - distance;
 			if (overlap > 0) {
@@ -326,16 +366,37 @@ void checkCollision(Circle& circle, const Wall& wall, glm::vec2* target = nullpt
 		}
 	}
 	else {
+
+		//     T
+		// -----
+		//     | C
+		//     |
+		if (!doIntersect(*target, circle.center, wall.start, wall.end))
+			return;
+		
+		//   |
+		//   | T
+		//   |______
+		// C
+		if ((x < std::min(wall.start.x, wall.end.x) || x > std::max(wall.start.x, wall.end.x))
+			&& (y < std::min(wall.start.y, wall.end.y) || y > std::max(wall.start.y, wall.end.y))
+			&& !doIntersect(*target, circle.center, wall.start, wall.end)) {
+			return;
+		}
+
+
 		auto a = glm::normalize(*target - circle.center);
 		auto b = wall.normal;
 		auto distant_target_wall = pointLineSignedDistance(*target, wall.start, wall.end, wall.normal);
-		if (glm::dot(a,b) > 0 && distance <= circle.radius && distant_target_wall >= 0) {
+		if (glm::dot(a,b) >= 0 && distance <= circle.radius && distant_target_wall >= 0) {
 
 			float overlap = circle.radius - distance;
 			if (overlap > 0) {
 				circle.center += wall.normal * overlap;
 			}
+			//std::cout << "AAAAAAA: " << wall.start <<" "<<wall.end<<"\n";
 		}
+		//std::cout <<"dot ab: "<< glm::dot(a, b) << " distant_target_wall: " << distant_target_wall << " distance: " << distance << "\n";
 	}
 }
 
@@ -371,6 +432,44 @@ void checkCollision(Circle& circle, const Wall& wall, glm::vec2* target = nullpt
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+// Skeletal Animation Blending --------------------------------------------------------------------------------------------------
+glm::mat4 interpolate(const glm::mat4& start, const glm::mat4& end, float progression) {
+	// Decompose matrices
+	glm::vec3 scaleStart, translationStart, scaleEnd, translationEnd;
+	glm::quat rotationStart, rotationEnd;
+	glm::vec3 skew;
+	glm::vec4 perspective;
+	glm::decompose(start, scaleStart, rotationStart, translationStart, skew, perspective);
+	glm::decompose(end, scaleEnd, rotationEnd, translationEnd, skew, perspective);
+
+	// Interpolate scale, rotation, and translation
+	glm::vec3 scaleInterpolated = glm::mix(scaleStart, scaleEnd, progression);
+	glm::quat rotationInterpolated = glm::slerp(rotationStart, rotationEnd, progression);
+	glm::vec3 translationInterpolated = glm::mix(translationStart, translationEnd, progression);
+
+	// Reconstruct transformation matrix
+	return glm::translate(glm::mat4(1.0f), translationInterpolated) *
+		glm::mat4_cast(rotationInterpolated) *
+		glm::scale(glm::mat4(1.0f), scaleInterpolated);
+}
+
+std::vector<glm::mat4> updateSkeleton(std::vector<glm::mat4>& last_transforms, std::vector<glm::mat4>& transforms, float blendFactor) {
+	std::vector<glm::mat4> globalTransforms(transforms.size());
+	for (int i = 0; i < transforms.size(); ++i) {
+		glm::mat4 transform1 = last_transforms[i];
+		glm::mat4 transform2 = transforms[i];
+		globalTransforms[i] = interpolate(transform1, transform2, blendFactor);
+	}
+
+	return globalTransforms;
+}
+
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+
+
 // SkeletalObject is same as Object3D, except SkeletalObject has bones array for skeletal animation.
 int main() {
 	// Initialize the window and OpenGL.
@@ -386,7 +485,7 @@ int main() {
 	//glCullFace(GL_FRONT);
 	//glFrontFace(GL_CCW);
 
-	window.setFramerateLimit(60);
+	//window.setFramerateLimit(60);
 
 	// shadow set up --------------------------------------------------------------------------------------------------
 	auto shadow_shader = setUpShadow();
@@ -427,26 +526,44 @@ int main() {
 	SkeletalAnimation vampire1_dance("models/vampire/dancing_vampire.dae", &vampire1_model);
 	SkeletalAnimator vampire1_animator(&vampire1_dance);
 	auto& vampire1 = vampire1_model.getRoot();
-	vampire1.grow(glm::vec3(1.3, 1.3, 1.3));
-	vampire1.move(glm::vec3(0, 0, -8));
 	vampire1.addTexture(loadTexture("models/vampire/textures/Vampire_normal.png", "normalMap"));
+
+	vampire1.grow(glm::vec3(1.3, 1.3, 1.3));
+	vampire1.move(glm::vec3(7.5, 0, 25));
+	vampire1.rotate(glm::vec3(0, PI, 0));
 
 
 
 	// vampire -----------------------------------------------------------------------------------------------------
-	Skeletal skeletal_model("models/model.dae", true);
-	SkeletalAnimation dance_animation("models/model.dae", &skeletal_model);
-	SkeletalAnimator skeletal_animator(&dance_animation);
+	// models/Standing Run Forward.dae
+	// models/model.dae
+
+	Skeletal skeletal_model("models/Standing Run Forward/Standing Run Forward.dae", true);
+	SkeletalAnimation walking_animation("models/Standing Run Forward/Standing Run Forward.dae", &skeletal_model);
+	SkeletalAnimator walking_animator(&walking_animation);
+
+	SkeletalAnimation idle_animation("models/Standing Run Forward/Idle.dae", &skeletal_model);
+	SkeletalAnimator idle_animator(&idle_animation);
+
+	SkeletalAnimation jump_animation("models/Standing Run Forward/Jump.dae", &skeletal_model);
+	SkeletalAnimator jump_animator(&jump_animation);
+	jump_animator.setRepeat(false);
+
+	std::vector<glm::mat4> last_vampire_transforms(skeletal_model.GetBoneCount());
+	for (int i = 0; i < last_vampire_transforms.size(); i++)
+		last_vampire_transforms[i] = glm::mat4(1.0);
+	bool transition_anim = false;
+
 
 
 	auto& vampire = skeletal_model.getRoot();
-	//vampire.move(glm::vec3(0, 0, 0));
-	float_t vampire_scale = 0.2;
-	vampire.grow(glm::vec3(vampire_scale, vampire_scale, vampire_scale));
+	vampire.move(glm::vec3(12.5, 0, 0));
+	//float_t vampire_scale = 0.2;
+	//vampire.grow(glm::vec3(vampire_scale, vampire_scale, vampire_scale));
 	vampire.setMass(10);
 
 
-	float_t vampire_height = 1;
+	float_t vampire_height = 2;
 	float_t vampire_velocity = 4;
 	glm::vec3 vampire_forward = glm::vec3(0, 0, 1);
 
@@ -497,19 +614,63 @@ int main() {
 	};
 	auto mesh = SkeletalMesh::square(textures);
 	auto ground = SkeletalObject(std::vector<SkeletalMesh>{mesh});
+	ground.move(glm::vec3(10, 0, 10));
 	ground.rotate(glm::vec3(-PI / 2, 0, 0));
-	ground.grow(glm::vec3(20, 20, 20));
+	ground.grow(glm::vec3(30, 30, 1));
 
 	
 
+	//std::vector<Wall> walls = {
+	//	Wall(textures, glm::vec3(-10, 2.5, 0), glm::vec3(0, PI/2, 0), 20.0f, 5.0f),
+	//	//Wall(textures, glm::vec3(10, 2.5, 0), glm::vec3(0, -PI / 2, 0), 20.0f, 5.0f),
+	//	//Wall(textures, glm::vec3(-16, 2.5, 3), glm::vec3(0, -PI / 3, 0), 20.0f, 5.0f),
+	//};
+
+	float wall_width = 0.001;
 	std::vector<Wall> walls = {
-		Wall(textures, glm::vec3(-10, 2.5, 0), glm::vec3(0, PI/2, 0), 20.0f, 5.0f),
-		Wall(textures, glm::vec3(10, 2.5, 0), glm::vec3(0, -PI / 2, 0), 20.0f, 5.0f),
-		//Wall(textures, glm::vec3(0, 2.5, -10), glm::vec3(0, PI/3, 0), 20.0f, 5.0f),
+		Wall(textures, glm::vec3(0, 2.5, 10), glm::vec3(0, PI / 2, 0), 20.0f, 5.0f),						// 1
+		//Wall(textures, glm::vec3(0, 2.5, 10), glm::vec3(0, -PI / 2, 0), 20.0f, 5.0f),						// 1
 
-		Wall(textures, glm::vec3(-16, 2.5, 3), glm::vec3(0, -PI / 3, 0), 20.0f, 5.0f),
+		Wall(textures, glm::vec3(5, 2.5, 0), glm::vec3(0, 0, 0), 10.0f, 5.0f),								// 2
+	
+		Wall(textures, glm::vec3(10 - wall_width, 2.5, 2.5), glm::vec3(0, -PI / 2, 0), 5.0f, 5.0f),			// 3
+		Wall(textures, glm::vec3(10 + wall_width, 2.5, 2.5), glm::vec3(0, PI / 2, 0), 5.0f, 5.0f),			// 3
+	
+		Wall(textures, glm::vec3(10, 2.5, 5 + wall_width), glm::vec3(0, 0, 0), 10.0f, 5.0f),				// 4
+		Wall(textures, glm::vec3(10, 2.5, 5 - wall_width), glm::vec3(0, PI, 0), 10.0f, 5.0f),				// 4
+
+		Wall(textures, glm::vec3(15 - wall_width, 2.5, 7.5), glm::vec3(0, -PI / 2, 0), 5.0f, 5.0f),			// 5
+		Wall(textures, glm::vec3(15 + wall_width, 2.5, 7.5), glm::vec3(0, PI / 2, 0), 5.0f, 5.0f),			// 5
+	
+		Wall(textures, glm::vec3(20 - wall_width, 2.5, 10), glm::vec3(0, -PI / 2, 0), 20.0f, 5.0f),			// 6
+		Wall(textures, glm::vec3(20 + wall_width, 2.5, 10), glm::vec3(0, PI / 2, 0), 20.0f, 5.0f),			// 6
+	
+		Wall(textures, glm::vec3(17.5, 2.5, 15 + wall_width), glm::vec3(0, 0, 0), 5.0f, 5.0f),				// 7
+		Wall(textures, glm::vec3(17.5, 2.5, 15 - wall_width), glm::vec3(0, PI, 0), 5.0f, 5.0f),				// 7
+		
+		Wall(textures, glm::vec3(15, 2.5, 20), glm::vec3(0, PI, 0), 10.0f, 5.0f),							// 8
+	
+		
+	
+		Wall(textures, glm::vec3(10 - wall_width, 2.5, 15), glm::vec3(0, -PI / 2, 0), 10.0f, 5.0f),			// 9
+		Wall(textures, glm::vec3(10 + wall_width, 2.5, 15), glm::vec3(0, PI / 2, 0), 10.0f, 5.0f),			// 9
+	
+		Wall(textures, glm::vec3(7.5, 2.5, 10 + wall_width), glm::vec3(0, 0, 0), 5.0f, 5.0f),				// 10
+		Wall(textures, glm::vec3(7.5, 2.5, 10 - wall_width), glm::vec3(0, PI, 0), 5.0f, 5.0f),				// 10
+	
+		Wall(textures, glm::vec3(5 - wall_width, 2.5, 12.5), glm::vec3(0, -PI / 2, 0), 5.0f, 5.0f),			// 11
+		Wall(textures, glm::vec3(5 + wall_width, 2.5, 12.5), glm::vec3(0, PI / 2, 0), 5.0f, 5.0f),			// 11
+
+		Wall(textures, glm::vec3(2.5, 2.5, 20), glm::vec3(0, PI, 0), 5.0f, 5.0f),							// 12
+	
+	
+		Wall(textures, glm::vec3(17.5, 2.5, 0 + wall_width), glm::vec3(0, 0, 0), 5.0f, 5.0f),				// 13
+		Wall(textures, glm::vec3(17.5, 2.5, 0 - wall_width), glm::vec3(0, PI, 0), 5.0f, 5.0f),				// 13
+	
+		
+	
+		
 	};
-
 
 
 
@@ -517,16 +678,16 @@ int main() {
 
 
 
-	auto tiger = assimpLoad("models/tiger/scene.gltf", true);
-	tiger.grow(glm::vec3(0.01, 0.01, 0.01));
-	tiger.move(glm::vec3(2, 2, 4));
+	//auto tiger = assimpLoad("models/tiger/scene.gltf", true);
+	//tiger.grow(glm::vec3(0.01, 0.01, 0.01));
+	//tiger.move(glm::vec3(2, 2, 4));
 
 
 	
 
 	// light source -----------------------------------------------------------
 	auto light_scene = lightScene();
-	auto light_cube = light_scene.objects[0];
+	auto& light_cube = light_scene.objects[0];
 	ShaderProgram& light_shader = light_scene.defaultShader;
 	light_shader.activate();
 	light_shader.setUniform("projection", perspective);
@@ -613,7 +774,7 @@ int main() {
 		auto diff = now - last;
 		auto diffSeconds = diff.asSeconds();
 		last = now;
-		//std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
+		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 
 
 		
@@ -650,6 +811,10 @@ int main() {
 				auto tmp = glm::vec2(target.x, target.z);
 				checkCollision(cam_circle, wall, &tmp);
 			}
+			for (auto& wall : walls) {
+				auto tmp = glm::vec2(target.x, target.z);
+				checkCollision(cam_circle, wall, &tmp);
+			}
 			camera_pos.x = cam_circle.center.x;
 			camera_pos.z = cam_circle.center.y;
 			// ----------------------------------------------------------------------------------------------------
@@ -672,7 +837,9 @@ int main() {
 
 		// control character -----------------------------------------------------------------------------------------------------------------------------
 		
-		
+
+
+		std::vector<glm::mat4> vampire_transforms;
 		if ((!move_left && !move_right && !move_forward && !move_backward) || jumping) {
 			moving = false;
 		}
@@ -680,18 +847,29 @@ int main() {
 			moving = true;
 		}
 		if (moving && vampire.getPosition().y == 0) {
-			skeletal_animator.UpdateAnimation(diff.asSeconds());
+			walking_animator.UpdateAnimation(diffSeconds);
+			vampire_transforms = walking_animator.GetFinalBoneMatrices();
 		}
 		else {
-			skeletal_animator.resetAnimation();
+			//walking_animator.resetAnimation();
+			idle_animator.UpdateAnimation(diffSeconds);
+			vampire_transforms = idle_animator.GetFinalBoneMatrices();
+
 		}
-		auto vampire_transforms = skeletal_animator.GetFinalBoneMatrices();
+		
+		if (vampire.getPosition().y > 0) {
+			jump_animator.UpdateAnimation(diffSeconds);
+			vampire_transforms = jump_animator.GetFinalBoneMatrices();
+		}
+		else {
+			jump_animator.resetAnimation();
+		}
 		
 		//if (moving && jump_vampire.finish()) {
-		//	skeletal_animator.UpdateAnimation(diffSeconds);
+		//	walking_animator.UpdateAnimation(diffSeconds);
 		//}
 		//else {
-		//	skeletal_animator.resetAnimation();
+		//	walking_animator.resetAnimation();
 		//}
 		//if (jumping) {
 		//	if (jump_vampire.finish()) {
@@ -740,21 +918,24 @@ int main() {
 		rotate_vampire.tick(diffSeconds);
 
 
-		if ((now - last_gravity_time).asMilliseconds() > 1.0f) {
+		// try to fix different jump height - not working
+		if ((now - last_gravity_time).asMilliseconds() >= 2.0f) {
 			vampire.addForce(glm::vec3(0, -9.8, 0) * vampire.getMass());
-			last_gravity_time = now;
-
+			
 			if (jumping && vampire.getPosition().y == 0) {
 				
-				vampire.addForce(glm::vec3(0, 3000, 0));
+				vampire.addForce(glm::vec3(0, 10000, 0));
 				jumping = false;
 			}
 			//std::cout << vampire.getPosition() << "\n";
-			vampire.tick(diffSeconds);
+			vampire.tick((now - last_gravity_time).asSeconds());
+
+			last_gravity_time = now;
 		}
 		
+		// when on ground, position.y and velocity.y should be 0
 		auto vampire_pos = vampire.getPosition();
-		if (vampire_pos.y <= 0.0005) {
+		if (vampire_pos.y <= 0.005) {
 			vampire_pos.y = 0;
 			vampire.setPosition(vampire_pos);
 			auto vampire_vel = vampire.getVelocity();
@@ -770,6 +951,16 @@ int main() {
 		vampire_pos.x = vampire_circle.center.x;
 		vampire_pos.z = vampire_circle.center.y;
 		vampire.setPosition(vampire_pos);
+
+
+
+		// light cube --------------------------------------------------------------
+		light_cube.setPosition(glm::vec3(
+			target.x + 1,
+			target.y + 1,
+			target.z
+		));
+
 		
 
 		// skeletal animator-----------------------------------------------------------------------------------------------------------------------------
@@ -807,7 +998,7 @@ int main() {
 		renderSkeletal(window, shadow_shader, vampire1, vampire1_transforms);
 
 		ground.render(window, shadow_shader);
-		tiger.render(window, shadow_shader);
+		//tiger.render(window, shadow_shader);
 
 		for (auto& wall : walls) {
 			wall.wall_object.render(window, shadow_shader);
@@ -836,7 +1027,7 @@ int main() {
 		renderSkeletal(window, skeletal_shader, vampire1, vampire1_transforms);
 
 		ground.render(window, skeletal_shader);
-		tiger.render(window, skeletal_shader);
+		//tiger.render(window, skeletal_shader);
 
 
 		for (auto& wall : walls) {

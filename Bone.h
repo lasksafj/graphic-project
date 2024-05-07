@@ -71,7 +71,7 @@ public:
 			m_Scales.push_back(data);
 		}
 
-		//std::cout << name << ": " << m_NumPositions << " " << m_NumRotations << " " << m_NumScalings << "\n";
+		std::cout << name << ": " << m_NumPositions << " " << m_NumRotations << " " << m_NumScalings << "\n";
 	}
 
 	void Update(float animationTime)

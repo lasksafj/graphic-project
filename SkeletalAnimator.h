@@ -15,7 +15,10 @@ public:
 		m_CurrentTime = 0.0;
 		m_CurrentAnimation = animation;
 		
+		repeat = true;
 		int size = animation->getBonesSize();
+
+		//std::cout << "size: " << size << "\n";
 
 		m_FinalBoneMatrices.reserve(size);
 
@@ -28,13 +31,21 @@ public:
 
 	void UpdateAnimation(float dt)
 	{
-		m_DeltaTime = dt;
+		//m_DeltaTime = dt;
 		if (m_CurrentAnimation)
 		{
 			m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
-			m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
-			CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
+			if (repeat) {
+				m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
+			}
+			if (m_CurrentTime < m_CurrentAnimation->GetDuration()) {
+				CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
+			}
 		}
+	}
+
+	void setRepeat(bool val) {
+		repeat = val;
 	}
 
 	void PlayAnimation(SkeletalAnimation* pAnimation)
@@ -76,15 +87,17 @@ public:
 
 	void resetAnimation() {
 		m_CurrentTime = 0.0f;
-		for (int i = 0; i < m_FinalBoneMatrices.size(); i++)
-			m_FinalBoneMatrices[i] = glm::mat4(1.0);
+		//for (int i = 0; i < m_FinalBoneMatrices.size(); i++)
+		//	m_FinalBoneMatrices[i] = glm::mat4(1.0);
 	}
 
 private:
 	std::vector<glm::mat4> m_FinalBoneMatrices;
 	SkeletalAnimation* m_CurrentAnimation;
 	float m_CurrentTime;
-	float m_DeltaTime;
+	//float m_DeltaTime = 0;
+
+	bool repeat;
 
 
 	glm::mat4 m_GlobalInverseTransform;

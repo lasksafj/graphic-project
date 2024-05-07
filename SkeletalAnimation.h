@@ -36,7 +36,11 @@ public:
 		ReadHierarchyData(m_RootNode, scene->mRootNode);
 		ReadMissingBones(animation, *model);
 
+
+		bone_size = model->GetBoneCount();
 		std::cout << "Bone count: " << model->GetBoneCount() << "\n";
+
+		//std::cout << "Size: " << getBonesSize() << "\n";
 	}
 
 	~SkeletalAnimation()
@@ -45,14 +49,18 @@ public:
 
 	Bone* FindBone(const std::string& name)
 	{
-		auto iter = std::find_if(m_Bones.begin(), m_Bones.end(),
-			[&](const Bone& Bone)
-			{
-				return Bone.GetBoneName() == name;
-			}
-		);
+		//auto iter = std::find_if(m_Bones.begin(), m_Bones.end(),
+		//	[&](const Bone& Bone)
+		//	{
+		//		return Bone.GetBoneName() == name;
+		//	}
+		//);
+		//if (iter == m_Bones.end()) return nullptr;
+		//else return &(*iter);
+
+		auto iter = m_Bones.find(name);
 		if (iter == m_Bones.end()) return nullptr;
-		else return &(*iter);
+		else return &iter->second;
 	}
 
 
@@ -64,7 +72,7 @@ public:
 		return m_BoneInfoMap;
 	}
 
-	inline int getBonesSize() { return m_Bones.size(); }
+	inline int getBonesSize() { return bone_size; }
 
 private:
 	void ReadMissingBones(const aiAnimation* animation, Skeletal& model)
@@ -87,8 +95,8 @@ private:
 				boneInfoMap[boneName].id = boneCount;
 				boneCount++;
 			}
-			m_Bones.push_back(Bone(channel->mNodeName.data,
-				boneInfoMap[channel->mNodeName.data].id, channel));
+			m_Bones.insert({ channel->mNodeName.data , Bone(channel->mNodeName.data,
+				boneInfoMap[channel->mNodeName.data].id, channel) });
 		}
 
 		m_BoneInfoMap = boneInfoMap;
@@ -113,7 +121,9 @@ private:
 	}
 	float m_Duration;
 	int m_TicksPerSecond;
-	std::vector<Bone> m_Bones;
+	std::map<std::string, Bone> m_Bones;
 	AssimpNodeData m_RootNode;
 	std::unordered_map<std::string, BoneInfo> m_BoneInfoMap;
+
+	int bone_size;
 };
