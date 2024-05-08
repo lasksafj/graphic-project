@@ -91,6 +91,10 @@ public:
 		//	m_FinalBoneMatrices[i] = glm::mat4(1.0);
 	}
 
+	float getCurrentTime() {
+		return m_CurrentTime;
+	}
+
 private:
 	std::vector<glm::mat4> m_FinalBoneMatrices;
 	SkeletalAnimation* m_CurrentAnimation;

@@ -17,6 +17,7 @@ This application renders a textured mesh that was loaded with Assimp.
 #include "Skeletal.h"
 #include "SkeletalAnimator.h"
 #include <algorithm>
+#include "TransitionSkeletal.h"
 
 
 #define PI glm::pi<float>()
@@ -477,7 +478,7 @@ int main() {
 	Settings.depthBits = 24; // Request a 24 bits depth buffer
 	Settings.stencilBits = 8;  // Request a 8 bits stencil buffer
 	Settings.antialiasingLevel = 2;  // Request 2 levels of antialiasing
-	sf::RenderWindow window(sf::VideoMode{ 1200, 800 }, "SFML Demo", sf::Style::Resize | sf::Style::Close, Settings);
+	sf::RenderWindow window(sf::VideoMode{ 1400, 800 }, "SFML Demo", sf::Style::Resize | sf::Style::Close, Settings);
 	gladLoadGL();
 	glEnable(GL_DEPTH_TEST);
 
@@ -508,6 +509,7 @@ int main() {
 			return std::make_unique<RotationAnimation<Object3D>>(skybox, 120, glm::vec3(0, PI, 0));
 		}
 	);
+	skybox_anim.setRepeat(true);
 	skybox_anim.start();
 	
 	
@@ -539,6 +541,7 @@ int main() {
 	// models/model.dae
 
 	Skeletal skeletal_model("models/Standing Run Forward/Standing Run Forward.dae", true);
+
 	SkeletalAnimation walking_animation("models/Standing Run Forward/Standing Run Forward.dae", &skeletal_model);
 	SkeletalAnimator walking_animator(&walking_animation);
 
@@ -549,11 +552,21 @@ int main() {
 	SkeletalAnimator jump_animator(&jump_animation);
 	jump_animator.setRepeat(false);
 
-	std::vector<glm::mat4> last_vampire_transforms(skeletal_model.GetBoneCount());
-	for (int i = 0; i < last_vampire_transforms.size(); i++)
-		last_vampire_transforms[i] = glm::mat4(1.0);
-	bool transition_anim = false;
+	std::vector<glm::mat4> vampire_transforms;
 
+	// number of skeletal animation: 3
+	// 0: walking, 1:idle, 2:jump
+	std::vector<SkeletalAnimation*> vampire_animation_list = {
+		&walking_animation, &idle_animation, &jump_animation
+	};
+	std::vector<SkeletalAnimator*> vampire_animator_list = {
+		&walking_animator, & idle_animator, & jump_animator
+	};
+
+	int current_skeletal_anim = 1,
+		last_skeletal_anim = 1;
+	
+	TransitionSkeletal trans_skeletal = TransitionSkeletal(0.2f);
 
 
 	auto& vampire = skeletal_model.getRoot();
@@ -591,6 +604,9 @@ int main() {
 			return std::make_unique<RotationAnimation<SkeletalObject>>(vampire, 0.15, glm::vec3(0, angle, 0));
 		}
 	);
+	
+
+	
 
 	//-----------------------------------------------------------------------------------------------------
 
@@ -839,31 +855,55 @@ int main() {
 		
 
 
-		std::vector<glm::mat4> vampire_transforms;
+		
 		if ((!move_left && !move_right && !move_forward && !move_backward) || jumping) {
 			moving = false;
 		}
 		else {
 			moving = true;
 		}
-		if (moving && vampire.getPosition().y == 0) {
-			walking_animator.UpdateAnimation(diffSeconds);
-			vampire_transforms = walking_animator.GetFinalBoneMatrices();
-		}
-		else {
-			//walking_animator.resetAnimation();
-			idle_animator.UpdateAnimation(diffSeconds);
-			vampire_transforms = idle_animator.GetFinalBoneMatrices();
+
+		// blend skeletal animation if there is transition
+		if (trans_skeletal.finish()) {
+			if (moving && vampire.getPosition().y == 0) {
+				walking_animator.UpdateAnimation(diffSeconds);
+				//vampire_transforms = walking_animator.GetFinalBoneMatrices();
+				current_skeletal_anim = 0;
+			}
+			else {
+				//walking_animator.resetAnimation();
+				idle_animator.UpdateAnimation(diffSeconds);
+				//vampire_transforms = idle_animator.GetFinalBoneMatrices();
+				current_skeletal_anim = 1;
+			}
+
+			if (vampire.getPosition().y > 0) {
+				jump_animator.UpdateAnimation(diffSeconds);
+				//vampire_transforms = jump_animator.GetFinalBoneMatrices();
+				current_skeletal_anim = 2;
+			}
+			else {
+				jump_animator.resetAnimation();
+			}
+
+			if (current_skeletal_anim != last_skeletal_anim) {
+				trans_skeletal.setAnimTransforms(
+					vampire_animation_list[last_skeletal_anim], vampire_animation_list[current_skeletal_anim], 
+					vampire_animator_list[last_skeletal_anim]->getCurrentTime(), vampire_animator_list[current_skeletal_anim]->getCurrentTime()
+				);
+				trans_skeletal.start();
+				last_skeletal_anim = current_skeletal_anim;
+			}
+			else {
+				vampire_transforms = vampire_animator_list[current_skeletal_anim]->GetFinalBoneMatrices();
+			}
 
 		}
-		
-		if (vampire.getPosition().y > 0) {
-			jump_animator.UpdateAnimation(diffSeconds);
-			vampire_transforms = jump_animator.GetFinalBoneMatrices();
-		}
 		else {
-			jump_animator.resetAnimation();
+			trans_skeletal.updateAnimation(diffSeconds);
+			vampire_transforms = trans_skeletal.GetFinalBoneMatrices();
 		}
+		
 		
 		//if (moving && jump_vampire.finish()) {
 		//	walking_animator.UpdateAnimation(diffSeconds);
@@ -928,8 +968,12 @@ int main() {
 				jumping = false;
 			}
 			//std::cout << vampire.getPosition() << "\n";
+			// 
+			//if (trans_skeletal.finish()) {
+			//	vampire.tick((now - last_gravity_time).asSeconds());
+			//}
 			vampire.tick((now - last_gravity_time).asSeconds());
-
+				
 			last_gravity_time = now;
 		}
 		

@@ -28,6 +28,8 @@ private:
 	 * @brief The index of the current animation.
 	 */
 	int32_t m_currentIndex;
+
+	bool repeat;
 	
 	/**
 	 * @brief Activate the next animation.
@@ -42,6 +44,9 @@ private:
 		else {
 			m_currentIndex = -1;
 			m_currentAnimation = nullptr;
+			if (repeat) {
+				start();
+			}
 		}
 	};
 
@@ -53,6 +58,7 @@ public:
 		m_currentTime(0),
 		m_nextTransition(0),
 		m_currentIndex(-1), 
+		repeat(false),
 		m_currentAnimation(nullptr) {
 	}
 
@@ -102,5 +108,9 @@ public:
 
 	void clearAnimation() {
 		m_animations.clear();
+	}
+
+	void setRepeat(bool val) {
+		repeat = val;
 	}
 };

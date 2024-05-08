@@ -118,7 +118,7 @@ public:
 	}
 
 
-private:
+
 
 	float GetScaleFactor(float lastTimeStamp, float nextTimeStamp, float animationTime)
 	{
@@ -176,6 +176,30 @@ private:
 		return glm::scale(glm::mat4(1.0f), finalScale);
 	}
 
+
+
+
+
+	glm::quat quat_InterpolateRotation(float animationTime)
+	{
+		if (1 == m_NumRotations)
+		{
+			auto rotation = glm::normalize(m_Rotations[0].orientation);
+			return glm::toMat4(rotation);
+		}
+		int p0Index = GetRotationIndex(animationTime);
+		int p1Index = p0Index + 1;
+		float scaleFactor = GetScaleFactor(m_Rotations[p0Index].timeStamp,
+			m_Rotations[p1Index].timeStamp, animationTime);
+		glm::quat finalRotation = glm::slerp(m_Rotations[p0Index].orientation, m_Rotations[p1Index].orientation
+			, scaleFactor);
+		finalRotation = glm::normalize(finalRotation);
+		return finalRotation;
+	}
+
+
+
+private:
 	std::vector<KeyPosition> m_Positions;
 	std::vector<KeyRotation> m_Rotations;
 	std::vector<KeyScale> m_Scales;
