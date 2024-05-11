@@ -107,23 +107,27 @@ SkeletalMesh SkeletalMesh::square(const std::vector<Texture>& textures) {
 	std::vector<SkeletalVertex> vertices;
 	SkeletalVertex a;
 	a.Position = glm::vec3(-0.5f, 0.5f, 0.0f);
-	a.TexCoords = glm::vec2(0.0f, 0.5f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
+	a.TexCoords = glm::vec2(0.0f, 1.0f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Tangent = glm::vec3(0);
 	vertices.push_back(a);
 
 	a.Position = glm::vec3(-0.5f, -0.5f, 0.0f);
 	a.TexCoords = glm::vec2(0.0f, 0.0f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Tangent = glm::vec3(0);
 	vertices.push_back(a);
 
 	a.Position = glm::vec3(0.5f, -0.5f, 0.0f);
-	a.TexCoords = glm::vec2(0.5f, 0.0f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
+	a.TexCoords = glm::vec2(1.0f, 0.0f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Tangent = glm::vec3(0);
 	vertices.push_back(a);
 
 	a.Position = glm::vec3(0.5f, 0.5f, 0.0f);
-	a.TexCoords = glm::vec2(0.5f, 0.5f);
-	a.Normal = glm::vec3(0.0f, 0.0f, 0.5f);
+	a.TexCoords = glm::vec2(1.0f, 1.0f);
+	a.Normal = glm::vec3(0.0f, 0.0f, 1.0f);
+	a.Tangent = glm::vec3(0);
 	vertices.push_back(a);
 
 	vector<uint32_t> faces = { 0,1,2,0,2,3 };

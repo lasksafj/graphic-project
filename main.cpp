@@ -1038,6 +1038,8 @@ int main() {
 
 
 
+		glCullFace(GL_FRONT);
+
 		renderSkeletal(window, shadow_shader, vampire, vampire_transforms);
 		renderSkeletal(window, shadow_shader, vampire1, vampire1_transforms);
 
@@ -1047,6 +1049,8 @@ int main() {
 		for (auto& wall : walls) {
 			wall.wall_object.render(window, shadow_shader);
 		}
+
+		glCullFace(GL_BACK);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

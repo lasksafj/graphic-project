@@ -105,6 +105,9 @@ SkeletalMesh Skeletal::s_fromAssimpMesh(const aiMesh* mesh, const aiScene* scene
 		else {
 			vertex.TexCoords = glm::vec2(0.0f, 0.0f);
 		}
+
+		vertex.Tangent = glm::vec3(mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
+
 		vertices.push_back(vertex);
 	}
 
