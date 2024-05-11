@@ -28,7 +28,7 @@ This application renders a textured mesh that was loaded with Assimp.
 template<class T>
 struct Scene {
 	ShaderProgram defaultShader;
-	std::vector<Object3D> objects;
+	std::vector<T> objects;
 	std::vector<Animator<T>> animators;
 };
 
