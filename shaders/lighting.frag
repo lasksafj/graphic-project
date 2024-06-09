@@ -57,28 +57,34 @@ float ShadowCalculation(vec3 normal, vec3 lightDirection) {
 	float shadow = 0.0f;
 	vec3 fragToLight = FragWorldPos - lightPos;
 	float currentDepth = length(fragToLight);
-	float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f); 
+	// float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f); 
+    float bias = 0.05;
 
-	// Not really a radius, more like half the width of a square
-	int sampleRadius = 2;
-	float offset = 0.02f;
-	for(int z = -sampleRadius; z <= sampleRadius; z++)
-	{
-		for(int y = -sampleRadius; y <= sampleRadius; y++)
-		{
-		    for(int x = -sampleRadius; x <= sampleRadius; x++)
-		    {
-		        float closestDepth = texture(depthMap, fragToLight + vec3(x, y, z) * offset).r;
-				// Remember that we divided by the far_plane?
-				// Also notice how the currentDepth is not in the range [0, 1]
-				closestDepth *= far_plane;
-				if (currentDepth > closestDepth + bias)
-					shadow += 1.0f;     
-		    }    
-		}
-	}
-	// Average shadow
-	shadow /= pow((sampleRadius * 2 + 1), 3);
+    float closestDepth = texture(depthMap, fragToLight).r; 
+    closestDepth *= far_plane;
+    shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+    // PCF
+	// // Not really a radius, more like half the width of a square
+	// int sampleRadius = 2;
+	// float offset = 0.02f;
+	// for(int z = -sampleRadius; z <= sampleRadius; z++)
+	// {
+	// 	for(int y = -sampleRadius; y <= sampleRadius; y++)
+	// 	{
+	// 	    for(int x = -sampleRadius; x <= sampleRadius; x++)
+	// 	    {
+	// 	        float closestDepth = texture(depthMap, fragToLight + vec3(x, y, z) * offset).r;
+	// 			// Remember that we divided by the far_plane?
+	// 			// Also notice how the currentDepth is not in the range [0, 1]
+	// 			closestDepth *= far_plane;
+	// 			if (currentDepth > closestDepth + bias)
+	// 				shadow += 1.0f;     
+	// 	    }    
+	// 	}
+	// }
+	// // Average shadow
+	// shadow /= pow((sampleRadius * 2 + 1), 3);
         
     return shadow;
 }
@@ -120,8 +126,12 @@ void main() {
 
         // specular
         vec3 eyeDir = normalize(viewPos - FragWorldPos);
-        vec3 reflectDir = normalize(reflect(-lightDir, norm));
-        float spec = dot(reflectDir, eyeDir);
+        // vec3 reflectDir = normalize(reflect(-lightDir, norm));
+        // float spec = dot(reflectDir, eyeDir);
+        // blinn-phong
+        vec3 halfwayVec = normalize(eyeDir + lightDir);
+        float spec = dot(norm, halfwayVec);
+
         if (spec > 0) {
             if (hasSpecularMap) {
                 specularIntensity = texture(specularMap, TexCoord).x * directionalColor * pow(spec, material.w);
@@ -138,11 +148,11 @@ void main() {
     // FragColor = vec4(lightIntensity, 1) * texture(baseTexture, TexCoord);
 
     float shadow = ShadowCalculation(norm, lightDir);
-    // shadow = 0;
+    // float shadow = 0;
     FragColor = vec4(ambientIntensity * attenuation + (1.0 - shadow) * (diffuseIntensity + specularIntensity) * attenuation, 1) 
         * texture(baseTexture, TexCoord); 
 // ----------------------------------------------------------------------------------------------------------------------------------------
-
+// testing
 
     // vec3 projCoords = FragPosLightSpace.xyz / FragPosLightSpace.w;
     // projCoords = projCoords * 0.5 + 0.5;

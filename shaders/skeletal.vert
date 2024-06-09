@@ -19,7 +19,7 @@ out mat3 TBN;
 
 
 // skeletal animation
-const int MAX_BONES = 100;
+const int MAX_BONES = 200; //maybe higher than 100
 const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 finalBonesMatrices[MAX_BONES];
 uniform bool skeletal;

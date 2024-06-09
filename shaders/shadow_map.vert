@@ -13,7 +13,7 @@ uniform mat4 model;
 uniform bool skeletal;
 
 	
-const int MAX_BONES = 100;
+const int MAX_BONES = 200;
 const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 finalBonesMatrices[MAX_BONES];
 
